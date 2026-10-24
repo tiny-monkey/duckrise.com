@@ -59,6 +59,53 @@ pixels.forEach((row, y) => {
 });
 duck.append(fragment);
 
+const duckButton = document.querySelector(".duck-rise");
+let audioContext;
+let quackBuffer;
+let quackOffset = 0;
+
+async function loadQuack() {
+  if (quackBuffer) return;
+  audioContext ??= new (window.AudioContext || window.webkitAudioContext)();
+  const response = await fetch("quack.mp3");
+  const arrayBuffer = await response.arrayBuffer();
+  quackBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+  const samples = quackBuffer.getChannelData(0);
+  for (let i = 0; i < samples.length; i++) {
+    if (Math.abs(samples[i]) > 0.02) {
+      quackOffset = i / quackBuffer.sampleRate;
+      break;
+    }
+  }
+}
+
+function playQuack() {
+  const source = audioContext.createBufferSource();
+  source.buffer = quackBuffer;
+  source.connect(audioContext.destination);
+  source.start(0, quackOffset);
+  source.onended = () => source.disconnect();
+}
+
+duckButton.addEventListener("click", async () => {
+  if (duckButton.classList.contains("is-quacking")) return;
+
+  duckButton.classList.add("is-quacking");
+  window.setTimeout(() => duckButton.classList.remove("is-quacking"), 700);
+
+  try {
+    audioContext ??= new (window.AudioContext || window.webkitAudioContext)();
+    if (audioContext.state === "suspended") await audioContext.resume();
+    if (!quackBuffer) await loadQuack();
+    playQuack();
+  } catch {
+    // Keep the visual quack available when browser audio is unavailable.
+  }
+});
+
+loadQuack().catch(() => {});
+
 document.querySelectorAll("h1 > span > span").forEach((letter, index) => {
   letter.style.setProperty("--letter", index);
 });
